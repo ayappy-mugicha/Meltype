@@ -293,6 +293,8 @@ public sealed partial class CompositionDetector
             if (!kanaInput && found < 0) found = UserNameEnd(units, i, pending);
             if (!kanaInput && found < 0 && level != DetectionLevel.Manual) found = CapitalizedWordEnd(units, i, pending, final);
             if (!kanaInput && found < 0 && level != DetectionLevel.Manual) found = HyphenatedWordEnd(units, i, pending);
+            // 数字を挟んだ英字の略語 (i18n、l10n、h2o)。前後のかなに割らない (issue #434)。
+            if (!kanaInput && found < 0 && level != DetectionLevel.Manual) found = NumeronymEnd(units, i, pending);
             // 英語の語 + 数字のすぐ後ろの英単語 (part1026|beta、win11|pro) は、ローマ字として読めても英語 (ベタ にしない)。
             // 助詞で始まるなら日本語 (PS5|wokaitai)。
             if (!kanaInput && found < 0 && level != DetectionLevel.Manual && AlphanumericSuffixEnd(units, i, pending, segments, japaneseStart) is var suffix and > 0) found = suffix;
@@ -787,7 +789,7 @@ public sealed partial class CompositionDetector
     private static readonly HashSet<string> HyphenPrefixes = ["e", "x", "re", "co", "ex", "non", "anti", "semi", "multi", "pre", "sub", "post", "mid", "self", "well"];
 
     // 接頭辞の規則では拾えない、- の入ったよく使う英単語 (後ろが 2 文字以下など)
-    private static readonly HashSet<string> HyphenatedWords = ["co-op", "re-do", "x-ray", "t-shirt", "wi-fi", "hi-fi", "lo-fi", "sci-fi", "e-book", "e-sports", "k-pop", "j-pop", "j-rock", "j-core", "p-hub", "talk-admin", "r-18", "sub-6", "gpt-6.7", "a-z", "u-turn", "check-in", "log-in", "sign-in", "add-on", "plug-in", "built-in", "follow-up", "set-up", "pop-up", "drop-down"];
+    private static readonly HashSet<string> HyphenatedWords = ["co-op", "re-do", "x-ray", "t-shirt", "wi-fi", "hi-fi", "lo-fi", "sci-fi", "e-book", "e-sports", "k-pop", "j-pop", "j-rock", "j-core", "p-hub", "talk-admin", "r-18", "sub-6", "gpt-6.7", "a-z", "u-turn", "check-in", "log-in", "sign-in", "add-on", "plug-in", "built-in", "follow-up", "set-up", "pop-up", "drop-down", "blu-ray"];
     // 日本語のローマ字の途中を英語の接頭辞と誤認しないよう、日本語に続けて拾うのは明示した英数字表記だけ。
     private static readonly HashSet<string> NumericHyphenatedWords = ["r-18", "sub-6", "gpt-6.7"];
 
@@ -891,6 +893,41 @@ public sealed partial class CompositionDetector
         }
         // 最後までローマ字として読める語 (Meltype.desu) は、ふつうに判定する
         return readable ? -1 : end;
+    }
+
+    /// <summary>
+    /// 数字を英字が挟む短い略語 (i18n、l10n、h2o、a11y、k8s) の終わり。無ければ -1。
+    /// 末尾が数字だけの語 (win11、ps5) は今までの略語判定に任せる。
+    /// 日本語の途中の数字 (かいぎは3じ) を略語にしないよう、前後の英字は短く、全体も短いときだけ。
+    /// 末尾の子音が打ちかけ (pending の n: i18|n) のときも、数字の後ろの英字として数える。
+    /// </summary>
+    private int NumeronymEnd(IReadOnlyList<CompositionUnit> units, int start, string pending)
+    {
+        static bool IsLetter(CompositionUnit unit) => unit.Raw.Length > 0 && unit.Raw.All(char.IsAsciiLetter);
+        static bool IsDigit(CompositionUnit unit) => unit.Raw is [var d] && char.IsAsciiDigit(d);
+        if (start >= units.Count || !IsLetter(units[start])) return -1;
+        var i = start;
+        while (i < units.Count && IsLetter(units[i])) i++;
+        var headLen = Raw(units, start, i).Length;
+        if (headLen is < 1 or > 2 || i >= units.Count || !IsDigit(units[i])) return -1;
+        var digitStart = i;
+        while (i < units.Count && IsDigit(units[i])) i++;
+        var digitLen = Raw(units, digitStart, i).Length;
+        if (digitLen is < 1 or > 2) return -1;
+        var pendingLetters = i == units.Count && pending.Length > 0 && pending.All(char.IsAsciiLetter) ? pending : "";
+        if (i < units.Count && IsLetter(units[i]))
+        {
+            var tailStart = i;
+            while (i < units.Count && IsLetter(units[i])) i++;
+            // 数字の後ろにまた数字が続く形 (a1b2) は対象外
+            if (i < units.Count && IsDigit(units[i])) return -1;
+            var tailLen = Raw(units, tailStart, i).Length;
+            pendingLetters = i == units.Count && pending.Length > 0 && pending.All(char.IsAsciiLetter) ? pending : "";
+            if (tailLen + pendingLetters.Length is < 1 or > 3) return -1;
+        }
+        else if (pendingLetters.Length is < 1 or > 3) return -1;
+        var word = Raw(units, start, i) + pendingLetters;
+        return word.Length is >= 3 and <= 6 ? i : -1;
     }
 
     /// <summary>

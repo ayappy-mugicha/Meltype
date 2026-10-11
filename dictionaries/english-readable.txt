@@ -6,3 +6,5 @@ feature features future futures nature mature figure figures measure measures te
 see seeyou seeyouagain seeyoulater seeyoutomorrow
 thankyou thankyouverymuch goodafternoon goodevening
 nicetomeetyou howareyou imfine iloveyou takecare
+# 技術語: ローマ字だと別のかなに割れるが、日本語の語ではない (issue #421 #419 #422 #406)
+define defuse declutter overcute

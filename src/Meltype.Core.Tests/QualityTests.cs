@@ -209,6 +209,21 @@ internal static class Quality
         new("大文字", "AInituite", "AIについて"),
         new("大文字", "AIdekiru", "AIできる"),
         new("大文字", "McAfeeto", "McAfeeと"),
+
+        // --- 報告の回帰 (低単価の誤判定) ---
+        new("英語", "Gemma4", "Gemma4"),           // #404
+        new("英語", "Gemma3", "Gemma3"),
+        new("英語", "i18n", "i18n"),                 // #434
+        new("英語", "l10n", "l10n"),
+        new("英語", "h2o", "h2o"),
+        new("英語", "Blu-ray", "Blu-ray"),           // #435
+        new("英語", "overcute", "overcute"),         // #406
+        new("英語", "define", "define"),             // #421
+        new("英語", "defuse", "defuse"),             // #419
+        new("英語", "declutter", "declutter"),       // #422
+        new("混在", "kachiwodefinesuru", "かちをdefineする"),
+        new("混在", "mondaiwodefusesuru", "もんだいをdefuseする"),
+        new("混在", "mudawodecluttersuru", "むだをdeclutterする"),
     ];
 
     /// <summary>コードの行のキャレット位置 (コメント・文字列の中か)。</summary>
