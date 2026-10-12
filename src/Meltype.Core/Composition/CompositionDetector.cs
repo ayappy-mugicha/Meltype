@@ -812,6 +812,42 @@ public sealed partial class CompositionDetector
         // 全体が英単語・固有名詞 (Tokyo, Github) なら区切らない。
         // -pedia 複合 (Protopedia) も。Pro|to|pedia と助詞「と」に割らない。
         if (IsKnownCapitalizedWord(whole) || IsPediaEnglishWord(whole.ToLowerInvariant())) return -1;
+        // 短い頭 + 途中の大文字 (De + Vito + de → DeVitoで: issue #268)。
+        // De は「で」と読めるので、知っている語でなくても名前にする。うしろが助詞だけのとき、その助詞は名前に含めない。
+        // Vito の to のように、名前の最後の 2 文字が助詞と同じときは分けない。
+        if (!lowerStart)
+        {
+            var mid = 1;
+            while (mid < whole.Length && char.IsAsciiLetterLower(whole[mid])) mid++;
+            if (mid is >= 2 and <= 3 && mid < whole.Length && char.IsAsciiLetterUpper(whole[mid]))
+            {
+                var end = mid + 1;
+                while (end < whole.Length && char.IsAsciiLetterLower(whole[end])) end++;
+                if (end == whole.Length)
+                {
+                    var lowerAfter = end - mid - 1;
+                    var mark = -1;
+                    // 名前のうしろの助詞 (DeVito + de、GitHub + ni + push)。助詞の前が名前として足りるときだけ分ける。
+                    for (var i = mid + 1; i <= end - 2; i++)
+                    {
+                        var particleText = whole[i..(i + 2)];
+                        if (Detection.DictionaryDetector.StartsWithParticle(particleText) != particleText) continue;
+                        var lowerInName = i - mid - 1;
+                        if (lowerInName >= 3 || IsKnownCapitalizedWord(whole[..i])) { mark = i; break; }
+                    }
+                    // 大文字の直後が助詞だけ (OrpC + de) は略語なので、ここでは名前にしない。
+                    if (mark < 0 && !(lowerAfter == 2 && Detection.DictionaryDetector.StartsWithParticle(whole[(end - 2)..]) == whole[(end - 2)..]))
+                        mark = end;
+                    if (mark - mid >= 3)
+                    {
+                        var covered = 0;
+                        var unit = start;
+                        while (unit < n && covered < mark) covered += units[unit++].Raw.Length;
+                        if (covered == mark) return unit;
+                    }
+                }
+            }
+        }
         for (var k = n - 1; k > start; k--)
         {
             var head = Raw(units, start, k);

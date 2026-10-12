@@ -905,6 +905,8 @@ internal static class LanguageLearningTests
             ("PlanBdeiku", "PlanBでいく"), ("TypeAnohou", "TypeAのほう"), ("OrpCde", "OrpCで"), ("oRPCde", "oRPCで"), ("ORPCde", "ORPCで"),
             ("OCRwoshi", "OCRをし"), ("DeNAde", "DeNAで"), ("OpenAIno", "OpenAIの"), ("Anisiyouka", "Aにしようか"), ("MrXde", "MrXで"),
             ("McAfee", "McAfee"), ("McKinseyde", "McKinseyで"), ("McDonaldsde", "McDonaldsで"),
+            // #268: DeVito の De が「で」になり、後ろの で まで日本語になる
+            ("DeVitode", "DeVitoで"), ("DeVito", "DeVito"),
         })
         {
             var k = new CompositionTests.Keyboard();
