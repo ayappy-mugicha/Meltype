@@ -306,6 +306,7 @@ public sealed partial class CompositionDetector
             var found = -1;
             // ドメイン・拡張子の . の後ろは、ローマ字として読めても英字のままにする (tetr.io、Wakatte.TV、MeltypeTip.dll)。
             if (!kanaInput && level != DetectionLevel.Manual && i > 0 && units[i - 1].Raw == "." && PrecededByEnglish(i) == true) found = DotSuffixEnd(units, i, pending, final);
+            if (!kanaInput && found < 0 && level != DetectionLevel.Manual) found = ReadableStemDotSuffixEnd(units, i, pending, final, level);
             if (!kanaInput && found < 0) found = LeadingDotfileEnd(units, i, pending, final, level);
             // 英文の中の記号 (, . ! ? -) は読点・句点にせず半角のまま。日本語の文の中の英単語の後 (今日はgoogle、) は日本語の記号。
             // (かな入力では 、。 も かなのキーなので対象外)
@@ -552,6 +553,20 @@ public sealed partial class CompositionDetector
         unit.Raw.Length == 1 && unit.Raw[0] is >= '!' and <= '~' && !char.IsAsciiLetterOrDigit(unit.Raw[0]) && unit.Raw[0] is not ('[' or ']');
 
 
+    /// <summary>
+    /// 小文字だけの語の末尾が大文字 1 文字 (holoX) なら true。
+    /// 大文字の後ろに英字が続く (English の E) ときと、小文字側がよく使う日本語 (koreX → これX) のときは false。
+    /// </summary>
+    private bool IsTrailingCapitalName(string span, string? next)
+    {
+        if (span.Length < 4 || !char.IsAsciiLetterUpper(span[^1])) return false;
+        if (next is [var followed, ..] && char.IsAsciiLetter(followed)) return false;
+        var stem = span[..^1];
+        if (stem.Length < 3 || !stem.All(char.IsAsciiLetterLower)) return false;
+        if (IsCommonJapanese?.Invoke(stem) == true || _japanese.Words.ContainsWord(stem)) return false;
+        return true;
+    }
+
     /// <param name="final">打ち終わった (Space・Enter)。末尾の区間でも、英単語の打ちかけ (amaz) は英語の根拠にしない。</param>
     /// <param name="unreadable">区間にローマ字として読めなかった英字がある (zoom + de の m、bug + wo の g)。</param>
     /// <param name="endsWord">区間の後ろが記号だけ (let's go! の go)。語はそこで打ち終わっているので、短い語も末尾の語と同じく見る。</param>
@@ -562,6 +577,9 @@ public sealed partial class CompositionDetector
         if (IsContraction(span)) return level != DetectionLevel.Manual || char.IsAsciiLetterUpper(span[0]);
         if (span.Length == 0 || !span.All(char.IsAsciiLetter)) return false;
         var lower = span.ToLowerInvariant();
+        // 小文字の語の末尾が大文字 1 文字 (holoX → ほぉX になっていた: issue #469)。
+        // 略語 (PC、SNS) や途中の大文字 (GitHub) は下の規則のまま。小文字側がふつうの日本語 (kore) なら分けたまま。
+        if (level != DetectionLevel.Manual && IsTrailingCapitalName(span, next)) return true;
         // 小文字で始まって途中に大文字がある区間 (iPC、meteSNS) は、固有名詞の書き方 (iPhone・eBay・macOS) でなければ 1 語ではない:
         // 小文字の部分は前の日本語の続き (atarashi|i|PC → あたらしいPC、motome|te|SNS → 求めてSNS)。
         if (char.IsAsciiLetterLower(span[0]) && span.Skip(1).Any(char.IsAsciiLetterUpper) && _proper.Canonical(lower) != span) return false;
@@ -950,6 +968,29 @@ public sealed partial class CompositionDetector
             if (local < n && units[local].Raw == "@" && domainStarts) return local + 1;
         }
         return -1;
+    }
+
+    /// <summary>
+    /// ローマ字として読める英字のすぐ後ろに、読めない拡張子が続くとき (llama.cpp → っぁま。cpp)。
+    /// 語の先頭から拡張子までを 1 つの英語区間にする。大文字や既に英語と分かる語 (Meltype.amr) は、拡張子を別区間のままにする。
+    /// 数字の前 (3.14desu)・小数 (soudesu.1.5)・最後まで読める語 (Meltype.desu) は対象外。
+    /// </summary>
+    private int ReadableStemDotSuffixEnd(IReadOnlyList<CompositionUnit> units, int start, string pending, bool final, DetectionLevel level)
+    {
+        if (start > 0 && units[start - 1].Raw.Length > 0 && units[start - 1].Raw.All(char.IsAsciiLetter)) return -1;
+        var dot = start;
+        if (dot >= units.Count || units[dot].Raw.Length == 0 || !units[dot].Raw.All(char.IsAsciiLetter)) return -1;
+        if (char.IsAsciiLetterUpper(units[dot].Raw[0])) return -1;
+        while (dot < units.Count && units[dot].Raw.Length > 0 && units[dot].Raw.All(char.IsAsciiLetter)) dot++;
+        if (dot >= units.Count || units[dot].Raw != ".") return -1;
+        var stem = Raw(units, start, dot);
+        if (IsEnglishSpan(stem, atEnd: false, 0, false, start == 0, level, final, next: ".")) return -1;
+        var suffix = DotSuffixEnd(units, dot + 1, pending, final);
+        if (suffix <= dot + 1) return -1;
+        // 1.5 のような小数は拡張子ではない (soudesu.1.5 → そうです。1.5)。cpp のような英字の拡張子だけをまとめる。
+        var suffixRaw = Raw(units, dot + 1, Math.Min(suffix, units.Count));
+        if (suffixRaw.Length > 0 && char.IsAsciiDigit(suffixRaw[0])) return -1;
+        return suffix;
     }
 
     /// <summary>
