@@ -1332,6 +1332,14 @@ internal static class CompositionTests
     }
 
     [Test]
+    public static void Issue499_SbiStaysEnglish()
+    {
+        var k = new Keyboard();
+        k.Type("sbisinnseiginnkou\n");
+        Assert.Equal("sbiしんせいぎんこう", k.Host.Document);
+    }
+
+    [Test]
     public static void Issue421_DefineStaysEnglish()
     {
         var k = new Keyboard();

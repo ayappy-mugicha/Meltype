@@ -313,6 +313,8 @@ public sealed partial class CompositionDetector
                 KeepsPunctuationAfterEnglish(units, i, pending, precedingEnglish)) found = i + 1;
             if (!kanaInput && found < 0) found = UserNameEnd(units, i, pending);
             if (!kanaInput && found < 0 && level != DetectionLevel.Manual) found = CapitalizedWordEnd(units, i, pending, final);
+            // 先頭の読めない 3 文字略語 (sbi + sinnseiginnkou → sbi新生銀行: issue #499)。
+            if (!kanaInput && found < 0 && level != DetectionLevel.Manual) found = LeadingAbbreviationEnd(units, i, pending);
             if (!kanaInput && found < 0 && level != DetectionLevel.Manual) found = HyphenatedWordEnd(units, i, pending);
             // 数字を挟んだ英字の略語 (i18n、l10n、h2o)。前後のかなに割らない (issue #434)。
             if (!kanaInput && found < 0 && level != DetectionLevel.Manual) found = NumeronymEnd(units, i, pending);
@@ -774,6 +776,39 @@ public sealed partial class CompositionDetector
         if (context < 0) return (inDictionary && lower.Length >= 4 || word && lower.Length >= 6) && !ContainsJapaneseReading(kana, kanaAfter);
         var minimum = level switch { DetectionLevel.Aggressive => 2, DetectionLevel.Conservative => 4, _ => 3 };
         return lower.Length >= minimum;
+    }
+
+    /// <summary>
+    /// 入力先頭の、ローマ字として読めない 3 文字の略語 (sbi + sinnseiginnkou → sbi新生銀行: issue #499)。
+    /// 残りがよく使う日本語のときだけ。頭から読める語 (sore) と、英単語の頭 (str) は対象外。
+    /// </summary>
+    private int LeadingAbbreviationEnd(IReadOnlyList<CompositionUnit> units, int start, string pending)
+    {
+        if (start != 0 || IsCommonJapanese is not { } common) return -1;
+        var end = 0;
+        var head = "";
+        while (end < units.Count && head.Length < 3)
+        {
+            if (units[end].Raw.Length == 0 || !units[end].Raw.All(char.IsAsciiLetter)) return -1;
+            head += units[end].Raw;
+            end++;
+        }
+        if (head.Length != 3) return -1;
+        var lower = head.ToLowerInvariant();
+        if (_romaji.AnalyzeFragment(lower).IsValid || _english.IsPrefix(lower) || IsKnownEnglishWord(lower)) return -1;
+        var rest = (Raw(units, end, units.Count) + pending).ToLowerInvariant();
+        if (rest.Length < 4 || _romaji.Analyze(rest) is not { IsValid: true, Partial: "" or "n" } || !common(rest)) return -1;
+        // 読めない 1 文字の後ろが辞書の日本語 (s + dake + ga → sだけが) なら、3 文字を略語にしない。
+        for (var cut = 1; cut < 3 && cut < lower.Length; cut++)
+        {
+            var earlier = lower[cut..] + rest;
+            if (_romaji.Analyze(earlier) is not { IsValid: true, Partial: "" or "n" }) continue;
+            for (var len = 3; len <= Math.Min(earlier.Length, 8); len++)
+                if (_japanese.Words.ContainsWord(earlier[..len])) return -1;
+        }
+        var whole = lower + rest;
+        if (IsKnownEnglishWord(whole) || _english.IsPrefix(whole)) return -1;
+        return end;
     }
 
     /// <summary>
