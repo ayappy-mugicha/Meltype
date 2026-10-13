@@ -264,6 +264,27 @@ internal static class FeedbackTests
     }
 
     [Test]
+    public static void Issue543_KedomalaStaysJapanese()
+    {
+        // Issue #543: スペルチェッカーだけが知る domal で、末尾 l を英単語 (hotel) の l と見ない (kedomala → けどまぁ)
+        var saved = CompositionTests.Detector.SpellChecker;
+        CompositionTests.Detector.SpellChecker = new FewWordsChecker("domal");
+        try
+        {
+            foreach (var (typed, expected) in new[] { ("kedomala", "けどまぁ"), ("hotel", "hotel"), ("mala", "まぁ") })
+            {
+                var k = new CompositionTests.Keyboard();
+                k.Type(typed + "\n");
+                Assert.Equal(expected, k.Host.Document, typed);
+            }
+        }
+        finally
+        {
+            CompositionTests.Detector.SpellChecker = saved;
+        }
+    }
+
+    [Test]
     public static void Issue544_MendokuseenaStaysJapanese()
     {
         var k = new CompositionTests.Keyboard();
