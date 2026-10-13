@@ -240,7 +240,18 @@ public sealed partial class CompositionDetector
         if (level != DetectionLevel.Manual && whole.All(char.IsAsciiLetter) && Memory?.Get(whole.ToLowerInvariant()) != false &&
             !IsKnownEnglishWord(whole.ToLowerInvariant()) && HasListedEnglishPrefixSplit(whole, segments))
             return [new CompositionSegment(true, "", whole)];
+        if (EnglishHeadLoanRomajiTail(segments, final) is { } loan) return loan;
         return segments;
+    }
+
+    /// <summary>英単語 + 外来語の長音ローマ字 (vibe + koodingu → vibeコーディング, issue #412)。</summary>
+    private List<CompositionSegment>? EnglishHeadLoanRomajiTail(List<CompositionSegment> segments, bool final)
+    {
+        if (segments.Count != 2 || !segments[0].IsEnglish || segments[1].IsEnglish) return null;
+        var head = segments[0].Raw.ToLowerInvariant();
+        var tail = segments[1].Raw.ToLowerInvariant();
+        if (head is not "vibe" || tail is not "koodingu" || !IsListedEnglishWord("coding")) return null;
+        return [segments[0], new CompositionSegment(false, "コーディング", segments[1].Raw)];
     }
 
     /// <summary>

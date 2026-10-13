@@ -91,7 +91,7 @@ internal static class FeedbackTests
     public static void Issue413_VibeCodingStaysEnglish()
     {
         // vibe も coding もローマ字として途中まで読める (ゔぃべ、こぢん + g)。2 語の合成語なので英語のまま。
-        foreach (var (typed, expected) in new[] { ("vibecoding", "vibecoding"), ("vibecodingga", "vibecodingが") })
+        foreach (var (typed, expected) in new[] { ("vibecoding", "vibecoding"), ("vibecodingga", "vibecodingが"), ("vibekoodingu", "vibeコーディング") })
         {
             var k = new CompositionTests.Keyboard();
             k.Type(typed + "\n");
