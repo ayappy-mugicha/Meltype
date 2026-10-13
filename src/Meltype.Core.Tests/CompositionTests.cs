@@ -1413,6 +1413,14 @@ internal static class CompositionTests
     }
 
     [Test]
+    public static void Issue544_MendokuseenaStaysJapanese()
+    {
+        var k = new Keyboard();
+        k.Type("mendokuseena\n");
+        Assert.Equal("めんどくせえな", k.Host.Document);
+    }
+
+    [Test]
     public static void Issue506_EnumerateStaysEnglish()
     {
         var k = new Keyboard();

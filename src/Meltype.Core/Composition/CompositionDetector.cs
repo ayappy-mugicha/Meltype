@@ -620,6 +620,13 @@ public sealed partial class CompositionDetector
         return true;
     }
 
+    /// <summary>english-readable の語 (see) が、前後とも日本語のローマ字の続きか (mendoku|see|na → せえな)。同梱辞書の 5 文字以上 (define, defuse) は除く。</summary>
+    private bool ReadableEnglishContinuesJapaneseRomaji(string lower, int before, bool? after, string? next, bool inDictionary) =>
+        !(inDictionary && lower.Length >= 5) &&
+        before < 0 && after == false && next is [var following, ..] && char.IsAsciiLetter(following) &&
+        _romaji.AnalyzeFragment(lower) is { IsValid: true, Partial: "" or "n" } &&
+        _romaji.AnalyzeFragment(lower + next.ToLowerInvariant()).IsValid;
+
     /// <param name="final">打ち終わった (Space・Enter)。末尾の区間でも、英単語の打ちかけ (amaz) は英語の根拠にしない。</param>
     /// <param name="unreadable">区間にローマ字として読めなかった英字がある (zoom + de の m、bug + wo の g)。</param>
     /// <param name="endsWord">区間の後ろが記号だけ (let's go! の go)。語はそこで打ち終わっているので、短い語も末尾の語と同じく見る。</param>
@@ -688,7 +695,8 @@ public sealed partial class CompositionDetector
         if (char.IsAsciiLetterUpper(span[0]) && (exact || prefix || atEnd || (spellWord && next is [var symbol, ..] && !char.IsAsciiLetterOrDigit(symbol)))) return true;
         if (level == DetectionLevel.Manual) return false;
         // ローマ字として最後まで読めても日本語の語にならない英単語 (english-readable.txt)。Manual の後・助詞誤分割除外の後で確定する。
-        if (readableEnglish) return true;
+        // 日本語の途中でローマ字が続く (mendokuseena の せえ) なら英語にしない (issue #544)。
+        if (readableEnglish && !ReadableEnglishContinuesJapaneseRomaji(lower, before, after, next, inDictionary)) return true;
         // ユーザーが英字 / かなに直して覚えた語。ただし短くてローマ字として読める語 (go、no) は、日本語のすぐ後ろ
         // (nihon|go) では使わない (一度 go を英字で確定しただけで、日本語 が にほんgo になっていた)。
         if (Memory?.Get(lower) is { } learned && !(learned && before < 0 && lower.Length <= 3 && Fragment() is { IsValid: true, Partial: "" })) return learned;
@@ -707,7 +715,7 @@ public sealed partial class CompositionDetector
         }
         // ローマ字として最後まで読めても、日本語の語にならない英単語 (feature = ふぇあつれ、remote = れもて。dictionaries/english-readable.txt、#12)。
         // 日本語の語の始まりにもならない語だけを入れているので、後ろに日本語が続いても (feature|wo) 英語。
-        if (lower.Length >= 3 && ReadableEnglish.Value.ContainsWord(lower)) return true;
+        if (lower.Length >= 3 && ReadableEnglish.Value.ContainsWord(lower) && !ReadableEnglishContinuesJapaneseRomaji(lower, before, after, next, inDictionary)) return true;
         // -pedia (pedia / protopedia …)。ローマ字だと ぺぢあ になり、途中の to が助詞「と」に割れる (pro|to|pedia)。
         // wikipedia はスペルチェッカーで足りるが、pedia 単体や未登録の複合はここですくう。
         // CanBeEnglishSpan / 上の早期 return でも同じ IsPediaEnglishWord を通す (通さないとここへ届かない)。
