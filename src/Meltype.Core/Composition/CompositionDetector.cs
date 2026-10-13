@@ -534,6 +534,7 @@ public sealed partial class CompositionDetector
 
     /// <summary>
     /// 最初の大文字の前の小文字が、助詞で終わる日本語として読み切れるか (kyouhaGitHubni の kyouha)。
+    /// 助詞で終わらなくても、読み切れるローマ字 + 固有名詞 + ローマ字 (betunisoreGitHubdeii) は日本語。
     /// camelCaseName・getElementById・sakuraTreeNode のような識別子 (camel・get・sakura) は当たらない。
     /// </summary>
     private bool StartsWithJapaneseReading(string token)
@@ -541,8 +542,22 @@ public sealed partial class CompositionDetector
         var upper = token.AsSpan().IndexOfAnyInRange('A', 'Z');
         if (upper < 3) return false;
         var head = token[..upper];
-        return head.All(char.IsAsciiLetterLower) && TrailingParticles.Any(p => head.Length > p.Length && head.EndsWith(p, StringComparison.Ordinal)) &&
-            _romaji.AnalyzeFragment(head) is { IsValid: true, Partial: "" } && !IsKnownEnglishWord(head);
+        if (!head.All(char.IsAsciiLetterLower) || IsListedEnglishWord(head)) return false;
+        if (TrailingParticles.Any(p => head.Length > p.Length && head.EndsWith(p, StringComparison.Ordinal)) &&
+            _romaji.AnalyzeFragment(head) is { IsValid: true, Partial: "" })
+            return true;
+        if (_romaji.AnalyzeFragment(head) is not { IsValid: true, Partial: "" or "n" }) return false;
+        for (var k = upper + 3; k <= token.Length; k++)
+        {
+            var cap = token[upper..k];
+            if (!cap.All(char.IsAsciiLetter) || !char.IsAsciiLetterUpper(cap[0])) continue;
+            if (!IsKnownCapitalizedWord(cap)) continue;
+            var rest = token[k..];
+            if (rest.Length >= 2 && rest.All(char.IsAsciiLetterLower) &&
+                _romaji.AnalyzeFragment(rest) is { IsValid: true, Partial: "" or "n" })
+                return true;
+        }
+        return false;
     }
 
     /// <summary>

@@ -1266,4 +1266,12 @@ internal static class RomajiTypoTests
             Assert.Equal(expected, k.Host.Document, typed);
         }
     }
+
+    [Test]
+    public static void Issue546_BetunisoreGitHubdeiiSplitsJapanese()
+    {
+        var k = new CompositionTests.Keyboard();
+        k.Type("betunisoreGitHubdeii\n");
+        Assert.Equal("べつにそれGitHubでいい", k.Host.Document);
+    }
 }
