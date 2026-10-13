@@ -265,6 +265,10 @@ internal static class FeedbackTests
                 k.Type("w\n");
                 Assert.Equal(expected, k.Host.Document, prefix + "w");
             }
+            CompositionTests.Detector.SpellChecker = new FewWordsChecker("taw", "new", "show", "ryal");
+            var sorya = new CompositionTests.Keyboard();
+            sorya.Type("soryaxa\n");
+            Assert.Equal("そりゃぁ", sorya.Host.Document, "soryaxa+ryal");
         }
         finally
         {
