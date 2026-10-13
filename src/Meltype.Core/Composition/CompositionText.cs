@@ -379,7 +379,13 @@ public sealed class CompositionText
             if (IsLongVowelU(i)) continue;
             // 続けて打った s と合わせた つ まで読むと日本語の語 (shitsumon の shit) なら、英単語として見ない
             if (tsuFollows && ReadsAsJapaneseWithTsu(i, count, extra)) continue;
-            if (letters.Length >= 4 && _detector.IsKnownEnglishWord(letters)) return true;
+            // スペルチェッカーだけが知る語 (domal) で、変換ボックスでは最後まで読める (どま) なら英単語の末尾 l/x ではない (kedomala → けどまぁ)。
+            if (letters.Length >= 4)
+            {
+                var lower = letters.ToLowerInvariant();
+                if (_detector.IsListedEnglishWord(lower) || _detector.IsKnownEnglishWord(lower) && !_detector.Romaji.AnalyzeFragment(lower).IsValid)
+                    return true;
+            }
         }
         return false;
     }
