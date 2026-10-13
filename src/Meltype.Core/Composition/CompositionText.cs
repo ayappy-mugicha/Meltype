@@ -1100,6 +1100,8 @@ public sealed class CompositionText
     /// <summary>pending のローマ字の頭 + w を、笑いの w 単位に分ける。分けたら true。</summary>
     private bool TrySplitChatLaughterW(char w)
     {
+        // 英文の途中 (do it now) の now は、笑いの w ではない
+        if (_units.Count(u => IsLetters(u.Raw)) >= 2) return false;
         var head = _pending.ToString();
         var letters = head + char.ToLowerInvariant(w);
         if (letters.Length != 3 || !_detector.IsKnownEnglishWord(letters.ToLowerInvariant())) return false;
@@ -1122,6 +1124,7 @@ public sealed class CompositionText
     {
         if (letters.Length < 2 || letters[^1] is not ('w' or 'W')) return false;
         var head = letters[..^1];
+        if (head is "no") return false; // now は英文 (do it now)
         if (!head.All(char.IsAsciiLetterLower)) return false;
         if (_detector.Romaji.AnalyzeFragment(head) is not { IsValid: true, Partial: "" or "n" }) return false;
         return !(runStart ? _detector.IsKnownEnglishWord(head) : _detector.IsListedEnglishWord(head));
