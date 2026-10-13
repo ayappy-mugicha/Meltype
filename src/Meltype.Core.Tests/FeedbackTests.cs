@@ -250,11 +250,20 @@ internal static class FeedbackTests
         CompositionTests.Detector.SpellChecker = new FewWordsChecker("taw", "new", "show");
         try
         {
-            foreach (var (typed, expected) in new[] { ("kiyagattaw", "きやがったw"), ("kitaw!", "きたw！"), ("new", "new"), ("show", "show") })
+            foreach (var (typed, expected) in new[] { ("kiyagattaw", "きやがったw"), ("kitaw!", "きたw！"), ("show", "show") })
             {
                 var k = new CompositionTests.Keyboard();
                 k.Type(typed + "\n");
                 Assert.Equal(expected, k.Host.Document, typed);
+            }
+            // #492: ねw・さw (チャットの笑い) がスペルチェッカーの new / saw になっていた
+            foreach (var (prefix, expected) in new[] { ("ne", "ねw"), ("sa", "さw") })
+            {
+                var k = new CompositionTests.Keyboard();
+                k.Type(prefix);
+                Assert.Equal(expected[..^1], k.Showing, prefix + " の直後");
+                k.Type("w\n");
+                Assert.Equal(expected, k.Host.Document, prefix + "w");
             }
         }
         finally
@@ -1038,7 +1047,7 @@ internal static class LanguageLearningTests
                 // 伸ばす音の う + について (そう|u|ni|t の unit) で、t と s が つ にならず英単語 unit になっていた。英単語 + する (commit|する) は今までどおり
                 ("sounitsuite", "そうについて"), ("hontounitsukareta", "ほんとうにつかれた"), ("kaijounitsukuto", "かいじょうにつくと"), ("kyouhacommitsuru", "きょうはcommitする"), ("editsuru", "editする"),
                 // 笑いの w (文末の w が消えていた、ww が っw になっていた)。英単語の最後の w はそのまま
-                ("kiyagattaw", "きやがったw"), ("daneww", "だねww"), ("toottawwwww", "とおったwwwww"), ("wwww", "wwww"), ("kitaww!", "きたww！"), ("new", "new"), ("aww", "aww"),
+                ("kiyagattaw", "きやがったw"), ("daneww", "だねww"), ("toottawwwww", "とおったwwwww"), ("wwww", "wwww"), ("kitaww!", "きたww！"), ("new", "ねw"), ("aww", "aww"),
                 // 読めない略語の最後の c + は・や (vrc|ya が vr|ちゃ になっていた)。読める語 (まち) と大文字の略語の後ろ (EDちゃう) は分けない
                 ("vrcyaranai", "vrcやらない"), ("vchairu", "vcはいる"), ("pcha", "pcは"), ("machi", "まち"), ("ochaire", "おちゃいれ"), ("EDchau", "EDちゃう"),
                 ("everyonenohatsugen", "everyoneのはつげん"),

@@ -233,6 +233,7 @@ public sealed partial class CompositionDetector
                 lowerWhole.Length - leading.Length < 3 ||
                 !IsKnownEnglishWord(lowerWhole[leading.Length..]))
             {
+                if (ChatLaughterKnownEnglishWord(units, pending, whole) is { } chat) return chat;
                 return [new CompositionSegment(true, "", whole)];
             }
         }
@@ -240,6 +241,7 @@ public sealed partial class CompositionDetector
         if (level != DetectionLevel.Manual && whole.All(char.IsAsciiLetter) && Memory?.Get(whole.ToLowerInvariant()) != false &&
             !IsKnownEnglishWord(whole.ToLowerInvariant()) && HasListedEnglishPrefixSplit(whole, segments))
             return [new CompositionSegment(true, "", whole)];
+        if (ChatLaughterKnownEnglishWord(units, pending, whole) is { } chatSegments) return chatSegments;
         return segments;
     }
 
@@ -1242,6 +1244,21 @@ public sealed partial class CompositionDetector
     {
         var kana = string.Concat(Enumerable.Range(start, end - start).Select(k => units[k].Kana));
         return new CompositionSegment(false, kana, Raw(units, start, end) + pending);
+    }
+
+    /// <summary>ねw・さw: 末尾を別に打った w の笑いなのに、連結がスペルチェッカー語 (new/saw) になる (issue #492)。</summary>
+    private List<CompositionSegment>? ChatLaughterKnownEnglishWord(IReadOnlyList<CompositionUnit> units, string pending, string whole)
+    {
+        if (pending.Length > 0 || units.Count < 2) return null;
+        var last = units[^1];
+        if (last.Raw is not ("w" or "W") || last.Kana is not ("w" or "W")) return null;
+        if (whole.Length != 3 || !whole.All(char.IsAsciiLetter) || whole[^1] is not ('w' or 'W') ||
+            !IsKnownEnglishWord(whole.ToLowerInvariant())) return null;
+        var head = whole[..^1].ToLowerInvariant();
+        if (_romaji.AnalyzeFragment(head) is not { IsValid: true, Partial: "" or "n" }) return null;
+        if (IsKnownEnglishWord(head) && head.Length >= 3) return null;
+        if (IsListedEnglishWord(head) && head.Length >= 5) return null;
+        return [Japanese(units, 0, units.Count - 1, ""), new CompositionSegment(true, "", last.Raw)];
     }
 
     /// <summary>単位 [start, end) に、ローマ字として読めなかった英字 (かなにならなかった 1 文字) があるか。</summary>

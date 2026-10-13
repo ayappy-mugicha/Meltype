@@ -186,6 +186,10 @@ public sealed class CompositionText
                 _units.Add(new CompositionUnit(arrow.ToString(), raw));
                 return;
             }
+            // ねw・さw: スペルチェッカー語 (new/saw) になる直前の w は、かなの後ろの笑い (issue #492)
+            if (c is 'w' or 'W' && _pending.Length > 0 && _pending.ToString().All(char.IsAsciiLetterLower) &&
+                TrySplitChatLaughterW(c))
+                return;
             _pending.Append(c);
             SplitUnitAfterNumber(final: false);
             Normalize(final: false);
@@ -1093,6 +1097,36 @@ public sealed class CompositionText
     /// <summary>笑いとして w のまま残した単位 (打ち間違いの直しの対象にしない)。</summary>
     private static bool IsLaughter(CompositionUnit unit) => unit.Raw is "w" or "W" && unit.Kana == unit.Raw;
 
+    /// <summary>pending のローマ字の頭 + w を、笑いの w 単位に分ける。分けたら true。</summary>
+    private bool TrySplitChatLaughterW(char w)
+    {
+        var head = _pending.ToString();
+        var letters = head + char.ToLowerInvariant(w);
+        if (letters.Length != 3 || !_detector.IsKnownEnglishWord(letters.ToLowerInvariant())) return false;
+        var letterRunStart = _units.Count;
+        while (letterRunStart > 0 && IsLetters(_units[letterRunStart - 1].Raw)) letterRunStart--;
+        var runStart = letterRunStart == 0;
+        if (!ChatLaughterNotEnglishWord(letters, runStart)) return false;
+        _pending.Clear();
+        if (head.Length > 0)
+        {
+            _pending.Append(head);
+            Normalize(final: true);
+        }
+        _units.Add(new CompositionUnit(w.ToString(), w.ToString()));
+        return true;
+    }
+
+    /// <summary>ねw・さw がスペルチェッカーの new / saw にならない (issue #492)。頭だけが日本語のローマ字で、末尾が w だけのときは英単語にしない。</summary>
+    private bool ChatLaughterNotEnglishWord(string letters, bool runStart)
+    {
+        if (letters.Length < 2 || letters[^1] is not ('w' or 'W')) return false;
+        var head = letters[..^1];
+        if (!head.All(char.IsAsciiLetterLower)) return false;
+        if (_detector.Romaji.AnalyzeFragment(head) is not { IsValid: true, Partial: "" or "n" }) return false;
+        return !(runStart ? _detector.IsKnownEnglishWord(head) : _detector.IsListedEnglishWord(head));
+    }
+
     /// <summary>end の手前で終わる英字の並び (withPending なら入力途中の子音も) の最後の w の連続を、笑いなら w の単位にする。笑いの始まりを返す。</summary>
     private int KeepLaughterAt(int end, bool withPending)
     {
@@ -1112,7 +1146,8 @@ public sealed class CompositionText
         {
             letters = _units[i].Raw + letters;
             var runStart = i == 0 || !IsLetters(_units[i - 1].Raw);
-            if (letters.Length >= 3 && (runStart ? _detector.IsKnownEnglishWord(letters) : _detector.IsListedEnglishWord(letters.ToLowerInvariant()))) return end;
+            if (letters.Length >= 3 && (runStart ? _detector.IsKnownEnglishWord(letters) : _detector.IsListedEnglishWord(letters.ToLowerInvariant())) &&
+                !ChatLaughterNotEnglishWord(letters, runStart)) return end;
         }
         _units.RemoveRange(start, end - start);
         if (withPending) _pending.Clear();
