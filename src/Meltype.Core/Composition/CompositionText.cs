@@ -253,8 +253,13 @@ public sealed class CompositionText
         {
             if (!_detector.IsKnownEnglishWord(run[start..])) continue;
             // ローマ字として最後まで読める語 (gomen の omen = おめ + n) は、日本語を打っている (ごめんよ)。
-            // 分けるのは、ローマ字として読めない英単語 (python、kotlin、json) だけ。
-            if (_detector.Romaji.AnalyzeFragment(run[start..].ToLowerInvariant()) is { IsValid: true }) continue;
+            // 分けるのは、ローマ字として読めない英単語 (python、kotlin、json) か、
+            // 前がよく使う日本語のとき (ima + open + no → open の n を ん にしない: issue #485)。
+            if (_detector.Romaji.AnalyzeFragment(run[start..].ToLowerInvariant()) is { IsValid: true })
+            {
+                var prefix = run[..start].ToLowerInvariant();
+                if (prefix.Length < 2 || _detector.IsCommonJapanese?.Invoke(prefix) != true) continue;
+            }
             _units[^1] = new CompositionUnit("ん", last.Raw[..1]);
             _pending.Append(last.Raw[1]);
             return;
