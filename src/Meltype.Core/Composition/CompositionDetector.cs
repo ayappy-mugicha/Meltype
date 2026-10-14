@@ -519,6 +519,13 @@ public sealed partial class CompositionDetector
     /// <summary>スペルチェッカーが正しいと言う英単語か、よくある打ち間違い (teh、recieve) か。</summary>
     internal bool IsSpellWord(string lower) => SpellChecker is { } checker && (checker.IsWord(lower) || checker.AutoCorrection(lower) is not null);
 
+    /// <summary>スペルだけが知る l/x 終わりでローマ字として読める語 (domal)。hotel の末尾 l 扱いにしない (kedomala)。</summary>
+    internal bool IsSpellKnownRomajiEndingInLorX(string lower) =>
+        lower.Length >= 4 && lower[^1] is 'l' or 'x' && !IsListedEnglishWord(lower) && IsSpellWord(lower) &&
+        !_english.Words.ContainsWord(lower) && !ReadableEnglish.Value.ContainsWord(lower) &&
+        (SpellChecker is BuiltInWordChecker builtIn ? !builtIn.IsWord(lower) : SpellChecker is not null) &&
+        _romaji.AnalyzeFragment(lower).IsValid;
+
     /// <summary>よくある英語の打ち間違いなら正しい綴り (teh → the)。大文字で始まる語は大文字で始める。</summary>
     public string? EnglishAutoCorrection(string word)
     {
