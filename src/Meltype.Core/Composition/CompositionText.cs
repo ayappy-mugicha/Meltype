@@ -517,15 +517,42 @@ public sealed class CompositionText
         }
     }
 
+    /// <summary>確定時、単位に分かれた zenin / tenin を語全体として読む (ze|ni|n → ぜんいん)。</summary>
+    private bool TryMergeWholeWordKanaOnFinal()
+    {
+        if (_pending.Length > 0 && !_pending.ToString().All(char.IsAsciiLetter)) return false;
+        var letters = LettersBefore(_units.Count) + _pending.ToString();
+        if (letters.Length == 0) return false;
+        var lower = letters.ToLowerInvariant();
+        if (_detector.Romaji.GetWholeWordKanaWhenFinal(lower, final: true) is not { } kana) return false;
+        var letterUnits = 0;
+        while (letterUnits < _units.Count && _units[^(letterUnits + 1)].Raw.All(char.IsAsciiLetter)) letterUnits++;
+        if (letterUnits > 0) _units.RemoveRange(_units.Count - letterUnits, letterUnits);
+        _units.Add(new CompositionUnit(kana, letters));
+        _pending.Clear();
+        return true;
+    }
+
+    /// <summary>Enter 確定の直前に、zenin / tenin のように ん が 1 つ足りない綴りを語全体として読む。</summary>
+    public void MergeOmittedNWholeWordsOnCommit() => TryMergeWholeWordKanaOnFinal();
+
     /// <summary>Pending のうち、音として確定した部分を単位に移す。</summary>
     private void Normalize(bool final)
     {
         if (final) SplitUnitAfterNumber(final: true);
+        if (final && TryMergeWholeWordKanaOnFinal()) return;
         var romaji = _detector.Romaji;
         while (_pending.Length > 0)
         {
             var original = _pending.ToString();
-            var analysis = romaji.AnalyzeFragment(original.ToLowerInvariant());
+            var lower = original.ToLowerInvariant();
+            if (final && lower.All(char.IsAsciiLetter) && romaji.GetWholeWordKanaWhenFinal(lower, final) is { } fixedKana)
+            {
+                _units.Add(new CompositionUnit(fixedKana, original));
+                _pending.Clear();
+                return;
+            }
+            var analysis = romaji.AnalyzeFragment(lower);
             var position = 0;
             var tokens = analysis.Tokens;
             for (var i = 0; i < tokens.Count; i++)

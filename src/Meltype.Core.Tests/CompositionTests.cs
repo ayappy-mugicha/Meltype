@@ -1441,11 +1441,35 @@ internal static class CompositionTests
     public static void SegmentationRegression_NinNotSplitAsEnglish()
     {
         Detector.UseScoredSegmentation = () => false;
-        foreach (var (typed, expected) in new[] { ("ichimannenn", "いちまんねん") })
+        foreach (var (typed, expected) in new[] { ("ichimannenn", "いちまんねん"), ("zenin", "ぜんいん") })
         {
             var k = new Keyboard();
             k.Type(typed + "\n");
             Assert.Equal(expected, k.Host.Document, typed);
+        }
+    }
+
+    [Test]
+    public static void SegmentationRegression_SpellCheckedEnglishWithParticle()
+    {
+        Detector.SpellChecker = Detection.BuiltInWordChecker.Shared;
+        try
+        {
+            foreach (var (typed, expected) in new[]
+            {
+                ("commentsuru", "commentする"),
+                ("channelya", "channelや"),
+                ("episodeListView", "episodeListView"),
+            })
+            {
+                var k = new Keyboard();
+                k.Type(typed + "\n");
+                Assert.Equal(expected, k.Host.Document, typed);
+            }
+        }
+        finally
+        {
+            Detector.SpellChecker = null;
         }
     }
 
